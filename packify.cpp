@@ -143,9 +143,59 @@ void install_command(const std::string &package_name) {
     delete_temp_file(temp_package);
 }
 
+// Function to handle package uninstallation
+void uninstall_command(const std::string &package_name) {
+    // File path for .packages
+    std::string packages_file = "/usr/local/share/.packages";
+
+    // Check if the .packages file exists
+    if (!exists(packages_file)) {
+        std::cerr << "Error: No packages installed yet.\n";
+        return;
+    }
+
+    // Read the .packages file and remove the package name
+    std::ifstream file(packages_file);
+    if (!file.is_open()) {
+        std::cerr << "Error: Unable to open .packages file\n";
+        return;
+    }
+
+    std::vector<std::string> packages;
+    std::string line;
+    while (std::getline(file, line)) {
+        if (line != package_name) {
+            packages.push_back(line);  // Keep packages that don't match the package_name
+        }
+    }
+    file.close();
+
+    // If the package was found and removed, update the .packages file
+    std::ofstream out(packages_file);
+    if (!out.is_open()) {
+        std::cerr << "Error: Unable to write to .packages file\n";
+        return;
+    }
+
+    for (const auto &pkg : packages) {
+        out << pkg << std::endl;  // Write the remaining packages
+    }
+
+    out.close();
+
+    // Now remove the installed binary
+    std::string install_path = "/usr/local/bin/" + package_name;
+    if (std::filesystem::exists(install_path)) {
+        std::filesystem::remove(install_path);  // Remove the binary
+        std::cout << "Uninstalled package: " << package_name << std::endl;
+    } else {
+        std::cerr << "Error: Package binary not found\n";
+    }
+}
+
 int main(int argc, char *argv[]) {
     if (argc < 2) {
-        std::cerr << "Usage: packify <command> [package_name]\n";
+        std::cerr << "Usage: packify <command> <package_name>\n";
         return 1;
     }
 
@@ -156,10 +206,17 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    if (command == "uninstall" && argc < 3) {
+        std::cerr << "Error: Package name required for uninstall.\n";
+        return 1;
+    }
+
     std::string package_name = argc > 2 ? argv[2] : "";
 
     if (command == "install" && !package_name.empty()) {
         install_command(package_name);
+    } else if (command == "uninstall" && !package_name.empty()) {
+        uninstall_command(package_name);
     } else {
         std::cerr << "Unknown command or missing arguments.\n";
         return 1;
