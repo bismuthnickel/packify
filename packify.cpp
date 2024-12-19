@@ -9,20 +9,17 @@
 #include <cstring>
 #include <cstdlib>
 
-// Function to check if a file or directory exists
 bool exists(const std::string &path) {
     std::filesystem::path p(path);
     return std::filesystem::exists(p);
 }
 
-// Function to create directories if they don't exist
 void create_directory(const std::string &path) {
     if (!exists(path)) {
         std::filesystem::create_directories(path);
     }
 }
 
-// Function to download a file using libcurl
 size_t write_data(void *ptr, size_t size, size_t nmemb, void *data) {
     FILE *write_here = (FILE *)data;
     return fwrite(ptr, size, nmemb, write_here);
@@ -54,7 +51,6 @@ void download_package(const std::string &url, const std::string &filename) {
     curl_global_cleanup();
 }
 
-// Function to parse .pkfy package files
 void parse_pkfy(const std::string &filename, std::string &name, std::string &version, std::vector<std::string> &dependencies) {
     std::ifstream file(filename);
     if (!file.is_open()) {
@@ -62,18 +58,17 @@ void parse_pkfy(const std::string &filename, std::string &name, std::string &ver
         return;
     }
 
-    std::getline(file, name);  // Read package name
-    std::getline(file, version);  // Read version
+    std::getline(file, name);
+    std::getline(file, version);
 
     std::string line;
     while (std::getline(file, line)) {
-        dependencies.push_back(line);  // Read dependencies
+        dependencies.push_back(line);
     }
 
     file.close();
 }
 
-// Function to install a package (move binary to /usr/local/bin)
 void install_package(const std::string &package_path, const std::string &install_path) {
     create_directory("/usr/local/bin");
 
@@ -89,19 +84,17 @@ void install_package(const std::string &package_path, const std::string &install
         return;
     }
 
-    dest << src.rdbuf();  // Copy file contents
+    dest << src.rdbuf();
 
     src.close();
     dest.close();
 
-    // Set the installed file as executable
     std::string command = "chmod +x " + install_path;
     system(command.c_str());
 
     std::cout << "Installed package to " << install_path << std::endl;
 }
 
-// Function to delete temporary files
 void delete_temp_file(const std::string &file_path) {
     if (std::filesystem::exists(file_path)) {
         std::filesystem::remove(file_path);
@@ -109,52 +102,41 @@ void delete_temp_file(const std::string &file_path) {
     }
 }
 
-// Function to handle package installation
 void install_command(const std::string &package_name) {
-    // Construct the URL to download the .pkfy file
-    std::string package_url = "https://raw.githubusercontent.com/bismuthnickel/pkfy/refs/heads/main/" + package_name;  // Replace with your repository URL
+    std::string package_url = "https://raw.githubusercontent.com/bismuthnickel/pkfy/refs/heads/main/" + package_name;
     std::string temp_package_file = "/tmp/" + package_name + ".pkfy";
     std::string temp_package = "/tmp/" + package_name;
 
-    // Download the package
     std::cout << "Downloading package " << package_name << " from " << package_url << "...\n";
     download_package(package_url + ".pkfy", temp_package_file);
     download_package(package_url, temp_package);
 
-    // Parse the .pkfy file to get package name, version, and dependencies
     std::string name, version;
     std::vector<std::string> dependencies;
     parse_pkfy(temp_package_file, name, version, dependencies);
 
     std::cout << "Installing " << name << " version " << version << std::endl;
 
-    // Install the package (for simplicity, we assume the binary is the same name as the package)
     std::string install_path = "/usr/local/bin/" + name;
     install_package(temp_package, install_path);
 
-    // Handle dependencies (this is a simplified version; real package managers would handle this more robustly)
     for (const auto &dep : dependencies) {
         std::cout << "Installing dependency: " << dep << std::endl;
-        install_command(dep);  // Recursively install dependencies
+        install_command(dep);
     }
 
-    // Delete the temporary files after installation
     delete_temp_file(temp_package_file);
     delete_temp_file(temp_package);
 }
 
-// Function to handle package uninstallation
 void uninstall_command(const std::string &package_name) {
-    // File path for .packages
     std::string packages_file = "/usr/local/share/.packages";
 
-    // Check if the .packages file exists
     if (!exists(packages_file)) {
         std::cerr << "Error: No packages installed yet.\n";
         return;
     }
 
-    // Read the .packages file and remove the package name
     std::ifstream file(packages_file);
     if (!file.is_open()) {
         std::cerr << "Error: Unable to open .packages file\n";
@@ -165,12 +147,11 @@ void uninstall_command(const std::string &package_name) {
     std::string line;
     while (std::getline(file, line)) {
         if (line != package_name) {
-            packages.push_back(line);  // Keep packages that don't match the package_name
+            packages.push_back(line);
         }
     }
     file.close();
 
-    // If the package was found and removed, update the .packages file
     std::ofstream out(packages_file);
     if (!out.is_open()) {
         std::cerr << "Error: Unable to write to .packages file\n";
@@ -178,15 +159,14 @@ void uninstall_command(const std::string &package_name) {
     }
 
     for (const auto &pkg : packages) {
-        out << pkg << std::endl;  // Write the remaining packages
+        out << pkg << std::endl;
     }
 
     out.close();
 
-    // Now remove the installed binary
     std::string install_path = "/usr/local/bin/" + package_name;
     if (std::filesystem::exists(install_path)) {
-        std::filesystem::remove(install_path);  // Remove the binary
+        std::filesystem::remove(install_path);
         std::cout << "Uninstalled package: " << package_name << std::endl;
     } else {
         std::cerr << "Error: Package binary not found\n";
